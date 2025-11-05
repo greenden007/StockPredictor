@@ -1,1 +1,3 @@
 yfinance==0.2.66
+prophet
+scikit-learn
