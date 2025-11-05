@@ -1,5 +1,6 @@
 import prophet
 import pandas as pd
+import numpy as np
 from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
 from scraper import get_stocks_list
 
@@ -32,19 +33,24 @@ def forecast_stock(stock):
 
     # Compute accuracy metrics
     mae = mean_absolute_error(merged['y'], merged['yhat'])
-    rmse = mean_squared_error(merged['y'], merged['yhat'])
+    rmse = np.sqrt(mean_squared_error(merged['y'], merged['yhat']))
     mape = mean_absolute_percentage_error(merged['y'], merged['yhat'])
 
     print(f"Performance for {stock}:")
     print(f"  MAE  = {mae:.2f}")
     print(f"  RMSE = {rmse:.2f}")
     print(f"  MAPE = {mape * 100:.2f}%")
+
+    return mae, rmse, mape
     
 
 
 
 if __name__ == "__main__":
+    results_df = pd.DataFrame(columns=["Stock", "MAE", "RMSE", "MAPE"])
     for stock in get_stocks_list():
-        forecast_stock(stock)
+        mae, rmse, mape = forecast_stock(stock)
+        results_df = pd.concat([results_df, pd.DataFrame({"Stock": [stock], "MAE": [mae], "RMSE": [rmse], "MAPE": [mape]})], ignore_index=True)
+    results_df.to_csv("results/prophet_results.csv", index=False)
 
     
