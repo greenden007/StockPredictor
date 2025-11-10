@@ -1,0 +1,107 @@
+Starting processing of 10 stocks using 7 processes...
+Processing NVDA...
+Performance for NVDA:
+  MAE  = 70.34
+  RMSE = 80.70
+  MAPE = 59.73%
+
+Recommendation for NVDA: SELL
+Trading Accuracy: 45.02%
+Profit/Loss: $0.00 (0.00%)
+Signals - Buy: 0, Sell: 602
+Processing MSFT...
+Performance for MSFT:
+  MAE  = 119.07
+  RMSE = 127.98
+  MAPE = 27.79%
+
+Recommendation for MSFT: SELL
+Trading Accuracy: 45.18%
+Profit/Loss: $0.00 (0.00%)
+Signals - Buy: 0, Sell: 602
+Processing AMZN...
+Performance for AMZN:
+  MAE  = 130.40
+  RMSE = 141.47
+  MAPE = 67.52%
+
+Recommendation for AMZN: SELL
+Trading Accuracy: 47.67%
+Profit/Loss: $0.00 (0.00%)
+Signals - Buy: 0, Sell: 602
+Processing META...
+Performance for META:
+  MAE  = 301.04
+  RMSE = 328.77
+  MAPE = 54.81%
+
+Recommendation for META: SELL
+Trading Accuracy: 46.84%
+Profit/Loss: $0.00 (0.00%)
+Signals - Buy: 0, Sell: 602
+Processing AVGO...
+Performance for AVGO:
+  MAE  = 98.23
+  RMSE = 120.60
+  MAPE = 49.89%
+
+Recommendation for AVGO: SELL
+Trading Accuracy: 46.84%
+Profit/Loss: $0.00 (0.00%)
+Signals - Buy: 0, Sell: 602
+Processing TSLA...
+Performance for TSLA:
+  MAE  = 272.27
+  RMSE = 310.07
+  MAPE = 94.20%
+
+Recommendation for TSLA: SELL
+Trading Accuracy: 49.34%
+Profit/Loss: $0.00 (0.00%)
+Signals - Buy: 0, Sell: 602
+Processing GOOG...
+Performance for GOOG:
+  MAE  = 88.53
+  RMSE = 98.16
+  MAPE = 50.18%
+
+Recommendation for GOOG: SELL
+Trading Accuracy: 43.52%
+Profit/Loss: $0.00 (0.00%)
+Signals - Buy: 0, Sell: 602
+Processing AMD...
+Performance for AMD:
+  MAE  = 57.77
+  RMSE = 66.90
+  MAPE = 37.67%
+
+Recommendation for AMD: SELL
+Trading Accuracy: 49.50%
+Profit/Loss: $238.20 (23.82%)
+Signals - Buy: 1, Sell: 601
+Processing AAPL...
+Performance for AAPL:
+  MAE  = 44.00
+  RMSE = 49.74
+  MAPE = 20.19%
+
+Recommendation for AAPL: SELL
+Trading Accuracy: 44.85%
+Profit/Loss: $0.00 (0.00%)
+Signals - Buy: 0, Sell: 602
+Processing ORCL...
+Performance for ORCL:
+  MAE  = 32.14
+  RMSE = 49.76
+  MAPE = 16.41%
+
+Recommendation for ORCL: SELL
+Trading Accuracy: 48.50%
+Profit/Loss: $641.51 (64.15%)
+Signals - Buy: 95, Sell: 507
+
+==================================================
+Processed 10 stocks successfully.
+Average Trading Accuracy: 46.73%
+Average Profit: $8.80%
+Results saved to results/prophet_results.csv
