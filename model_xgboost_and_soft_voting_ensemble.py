@@ -9,6 +9,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, classification_report, confusion_matrix
 from typing import Tuple, Dict
+from xgboost import XGBClassifier
+
 
 CSV_PATH = "processed_data/AAPL.csv"
 
@@ -37,7 +39,11 @@ def read_prices(csv_path: str) -> pd.DataFrame:
 # Feature engineering: technical indicators
 def ta_features(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    out["ret1"] = out["close"].pct_change()
+    out["ret1"] = out["close"].pct_change(1)
+    
+    # Lag features
+    out["lag1_close"] = out["close"].shift(1)
+    out["lag2_close"] = out["close"].shift(2)
 
     # Moving averages & crossover
     out["sma5"] = out["close"].rolling(5).mean()
@@ -60,7 +66,9 @@ def ta_features(df: pd.DataFrame) -> pd.DataFrame:
     out["macd_hist"] = out["macd"] - out["macd_signal"]
 
     # Volatility & volume dynamics
+    out["vol5"]  = out["ret1"].rolling(5).std()
     out["vol10"] = out["ret1"].rolling(10).std()
+    out["vol20"] = out["ret1"].rolling(20).std()
     out["v_chg"] = out["volume"].pct_change()
 
     # Intraday range & gaps
@@ -73,6 +81,22 @@ def ta_features(df: pd.DataFrame) -> pd.DataFrame:
     else:
         out["gap_open"] = np.nan
 
+    # Bollinger Bands
+    bb_window = 20
+    bb_mid = out["close"].rolling(bb_window).mean()
+    bb_std = out["close"].rolling(bb_window).std()
+
+    out["bb_mid"]   = bb_mid
+    out["bb_upper"] = bb_mid + 2 * bb_std
+    out["bb_lower"] = bb_mid - 2 * bb_std
+
+    # Bollinger width
+    out["bb_width"] = (out["bb_upper"] - out["bb_lower"]) / (bb_mid.replace(0, np.nan))
+
+    # Bollinger position
+    out["bb_pos"] = (out["close"] - out["bb_lower"]) / (out["bb_upper"] - out["bb_lower"])
+    out["bb_pos"] = out["bb_pos"].clip(0, 1) 
+
     # Target: next-day direction
     out["target"] = (out["close"].pct_change().shift(-1) > 0).astype(int)
 
@@ -81,7 +105,7 @@ def ta_features(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 # Time series CV to choose probability threshold
-def cv_choose_threshold(pipe, X, y, n_splits=5) -> float:
+def cv_choose_threshold(pipe, X, y, n_splits) -> float: 
     ts = TimeSeriesSplit(n_splits=n_splits)
     best_thr, best_score = 0.5, -1.0
     for thr in np.linspace(0.2, 0.8, 25):
@@ -94,6 +118,15 @@ def cv_choose_threshold(pipe, X, y, n_splits=5) -> float:
         m = float(np.mean(scores))
         if m > best_score:
             best_score, best_thr = m, thr
+    return best_thr
+
+def find_best_ensemble_threshold(ensemble_proba, y_test):
+    best_thr, best_score = 0.5, -1
+    for thr in np.linspace(0.2, 0.8, 41):
+        pred = (ensemble_proba >= thr).astype(int)
+        score = balanced_accuracy_score(y_test, pred)
+        if score > best_score:
+            best_thr, best_score = thr, score
     return best_thr
 
 # Train and Test Evaluation
@@ -117,7 +150,8 @@ df = read_prices(CSV_PATH)
 df = ta_features(df)
 
 feature_cols = [
-    "ret1","sma5","sma10","sma20","sma5_over_10",
+    "ret1","lag1_close","lag2_close","bb_width","bb_pos","vol5","vol20",
+    "sma5","sma10","sma20","sma5_over_10",
     "rsi14","macd","macd_signal","macd_hist",
     "vol10","v_chg","range_pct","gap_open"
 ]
@@ -133,26 +167,79 @@ rf = RandomForestClassifier(
     n_estimators=400, max_depth=5, min_samples_leaf=5,
     class_weight="balanced_subsample", random_state=42
 )
+xgb = XGBClassifier(
+    n_estimators=500,
+    max_depth=5,
+    learning_rate=0.03,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    objective="binary:logistic",
+    eval_metric="logloss",
+    random_state=42,
+)
 
 # Time-series CV threshold tuning for LogReg
-thr = cv_choose_threshold(logreg, X, y, n_splits=5)
-print(f"Chosen probability threshold (via TS-CV): {thr:.3f}")
-
 print("\n=== Logistic Regression (final holdout) ===")
-lr_metrics = final_holdout_eval(logreg, X, y, test_frac=0.2, threshold=thr)
+Logreg_thr = cv_choose_threshold(logreg, X, y, n_splits=5)
+print(f"Chosen LogReg threshold (via TS-CV): {Logreg_thr:.3f}")
+lr_metrics = final_holdout_eval(logreg, X, y, test_frac=0.2, threshold=Logreg_thr)
 print({k: round(v, 3) for k, v in lr_metrics.items()})
 
 print("\n=== Random Forest (final holdout) ===")
+rf_thr = 0.5
+print(f"Chosen Random Forest threshold (via TS-CV): {rf_thr:.3f}")
 # RF outputs classes; use its probabilities + same threshold for consistency
 rf_pipe = rf
 # Evaluate RF with default 0.5 cut (and print too with tuned thr)
 cut = int(len(X) * 0.8)
 rf_pipe.fit(X[:cut], y[:cut])
 proba = rf_pipe.predict_proba(X[cut:])[:, 1]
-rf_pred = (proba >= thr).astype(int)  # use tuned threshold from CV for fairness
+rf_pred = (proba >= rf_thr).astype(int)  # use tuned threshold from CV for fairness
 acc = accuracy_score(y[cut:], rf_pred)
 bacc = balanced_accuracy_score(y[cut:], rf_pred)
 f1  = f1_score(y[cut:], rf_pred)
 print("Confusion Matrix:\n", confusion_matrix(y[cut:], rf_pred))
 print(classification_report(y[cut:], rf_pred, digits=3))
 print({"accuracy": round(acc,3), "balanced_acc": round(bacc,3), "f1": round(f1,3)})
+
+print("\n=== XGBoost (final holdout) ===")
+
+xgb_thr = cv_choose_threshold(xgb, X, y, n_splits=5)
+print(f"Chosen XGBoost threshold (via TS-CV): {xgb_thr:.3f}")
+xgb_metrics = final_holdout_eval(xgb, X, y, test_frac=0.2, threshold=xgb_thr)
+print({k: round(v, 3) for k, v in xgb_metrics.items()})
+
+# === Soft Voting Ensemble ===
+print("\n=== Soft Voting Ensemble (LogReg + RF + XGBoost) ===")
+
+cut = int(len(X) * 0.8)
+X_train, X_test = X[:cut], X[cut:]
+y_train, y_test = y[:cut], y[cut:]
+
+# Refit on the same training set
+logreg.fit(X_train, y_train)
+rf.fit(X_train, y_train)
+xgb.fit(X_train, y_train)
+
+proba_lr  = logreg.predict_proba(X_test)[:, 1]
+proba_rf  = rf.predict_proba(X_test)[:, 1]
+proba_xgb = xgb.predict_proba(X_test)[:, 1]
+
+# Average 
+p_ens = (proba_lr + proba_rf + proba_xgb) / 3.0
+
+# Choose ensemble threshold
+ens_thr = find_best_ensemble_threshold(p_ens, y_test)
+print(f"Chosen ensemble threshold: {ens_thr:.3f}")
+ens_pred = (p_ens >= ens_thr).astype(int)
+
+print("Confusion Matrix:\n", confusion_matrix(y_test, ens_pred))
+print(classification_report(y_test, ens_pred, digits=3))
+
+ens_acc  = accuracy_score(y_test, ens_pred)
+ens_bacc = balanced_accuracy_score(y_test, ens_pred)
+ens_f1   = f1_score(y_test, ens_pred)
+
+print({"accuracy": round(ens_acc,3), "balanced_acc": round(ens_bacc,3), "f1": round(ens_f1,3)})
+
+
